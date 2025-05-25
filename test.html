@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimpleWallet 合约测试</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.8.1/ethers.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #555;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left-color: #dc3545;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border-left-color: #28a745;
+        }
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: white;
+            border-radius: 4px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            color: #007bff;
+        }
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+        }
+        .note {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #ffc107;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 SimpleWallet 合约测试</h1>
+        
+        <div class="note">
+            <strong>📋 使用说明:</strong> 部署合约后，请在代码中更新 CONTRACT_ADDRESS 变量为实际的合约地址
+        </div>
+        
+        <!-- 连接状态 -->
+        <div class="section">
+            <h3>📊 连接状态</h3>
+            <div id="connectionStatus" class="status disconnected">
+                未连接到MetaMask
+            </div>
+            <div id="accountInfo" style="display: none;">
+                <div class="info-item">
+                    <span>当前账户:</span>
+                    <span id="currentAccount"></span>
+                </div>
+                <div class="info-item">
+                    <span>网络:</span>
+                    <span id="networkInfo"></span>
+                </div>
+                <div class="info-item">
+                    <span>ETH余额:</span>
+                    <span id="ethBalance"></span>
+                </div>
+            </div>
+            <button id="connectWallet">连接MetaMask</button>
+            <button id="refreshInfo" style="display: none;">刷新信息</button>
+            <button id="manualLoadContract" style="display: none;">手动加载合约</button>
+        </div>
+
+        <!-- 合约状态 -->
+        <div class="section">
+            <h3>📋 合约信息</h3>
+            <div class="info-item">
+                <span>合约地址:</span>
+                <span id="contractAddressDisplay">请部署合约后更新地址</span>
+            </div>
+            <div id="contractStatus" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="two-column">
+            <!-- 只读方法 -->
+            <div class="section">
+                <h3>📖 只读方法</h3>
+                
+                <div class="form-group">
+                    <button id="sayHelloBtn">调用 sayHello()</button>
+                    <div id="sayHelloResult" class="result" style="display: none;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="balanceAddress">查询余额地址:</label>
+                    <input type="text" id="balanceAddress" placeholder="输入地址或使用当前账户">
+                    <button id="getBalanceBtn">查询余额</button>
+                    <div id="balanceResult" class="result" style="display: none;"></div>
+                </div>
+
+                <div class="form-group">
+                    <button id="getContractBalanceBtn">获取合约总余额</button>
+                    <div id="contractBalanceResult" class="result" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- 写入方法 -->
+            <div class="section">
+                <h3>✍️ 写入方法</h3>
+                
+                <div class="form-group">
+                    <label for="depositAmount">存款金额 (ETH):</label>
+                    <input type="number" id="depositAmount" step="0.001" min="0" placeholder="输入存款金额">
+                    <button id="depositBtn">存款</button>
+                    <div id="depositResult" class="result" style="display: none;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="withdrawAmount">取款金额 (ETH):</label>
+                    <input type="number" id="withdrawAmount" step="0.001" min="0" placeholder="输入取款金额">
+                    <button id="withdrawBtn">取款</button>
+                    <div id="withdrawResult" class="result" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 事件监听 -->
+        <div class="section">
+            <h3>📡 事件监听</h3>
+            <button id="listenEventsBtn">开始监听事件</button>
+            <button id="stopEventsBtn" style="display: none;">停止监听</button>
+            <div id="eventsResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div class="loading" id="loadingIndicator">
+            <p>⏳ 处理中...</p>
+        </div>
+    </div>
+
+    <script>
+        // 合约地址 - 部署后需要更新此地址
+        const CONTRACT_ADDRESS = 'YOUR_CONTRACT_ADDRESS_HERE';
+        const CONTRACT_ABI = [
+            {
+                "inputs": [],
+                "name": "sayHello",
+                "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+                "stateMutability": "pure",
+                "type": "function"
+            },
+            {
+                "inputs": [{"internalType": "address", "name": "", "type": "address"}],
+                "name": "balances",
+                "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "deposit",
+                "outputs": [],
+                "stateMutability": "payable",
+                "type": "function"
+            },
+            {
+                "inputs": [{"internalType": "uint256", "name": "_amount", "type": "uint256"}],
+                "name": "Withdraw",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "getContractBalance",
+                "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {"indexed": true, "internalType": "address", "name": "account", "type": "address"},
+                    {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+                ],
+                "name": "Deposited",
+                "type": "event"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {"indexed": true, "internalType": "address", "name": "account", "type": "address"},
+                    {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+                ],
+                "name": "Withdrawn",
+                "type": "event"
+            }
+        ];
+
+        let provider;
+        let signer;
+        let contract;
+        let userAccount;
+        let eventListeners = [];
+
+        // 页面加载完成后初始化
+        $(document).ready(function() {
+            checkContractAddress();
+            checkMetaMaskConnection();
+            setupEventHandlers();
+        });
+
+        // 检查合约地址是否已设置
+        function checkContractAddress() {
+            if (CONTRACT_ADDRESS === 'YOUR_CONTRACT_ADDRESS_HERE') {
+                showResult('contractStatus', '⚠️ 请先在代码中设置正确的合约地址', 'error');
+                $('#contractAddressDisplay').text('未设置合约地址');
+            } else {
+                $('#contractAddressDisplay').text(CONTRACT_ADDRESS);
+            }
+        }
+
+        // 设置事件处理器
+        function setupEventHandlers() {
+            $('#connectWallet').click(connectWallet);
+            $('#refreshInfo').click(refreshWalletInfo);
+            $('#manualLoadContract').click(manualLoadContract);
+            $('#sayHelloBtn').click(callSayHello);
+            $('#getBalanceBtn').click(getBalance);
+            $('#getContractBalanceBtn').click(getContractBalance);
+            $('#depositBtn').click(deposit);
+            $('#withdrawBtn').click(withdraw);
+            $('#listenEventsBtn').click(startEventListening);
+            $('#stopEventsBtn').click(stopEventListening);
+        }
+
+        // 检查MetaMask连接状态
+        async function checkMetaMaskConnection() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    const accounts = await window.ethereum.request({method: 'eth_accounts'});
+                    if (accounts.length > 0) {
+                        await initializeProvider();
+                        updateConnectionStatus(true);
+                        await refreshWalletInfo();
+                        if (CONTRACT_ADDRESS !== 'YOUR_CONTRACT_ADDRESS_HERE') {
+                            await loadContract();
+                        }
+                    } else {
+                        updateConnectionStatus(false);
+                    }
+                } catch (error) {
+                    console.error('检查连接状态失败:', error);
+                    updateConnectionStatus(false);
+                }
+            } else {
+                showResult('connectionStatus', '请安装MetaMask!', 'error');
+            }
+        }
+
+        // 连接钱包
+        async function connectWallet() {
+            if (typeof window.ethereum === 'undefined') {
+                showResult('connectionStatus', '请先安装MetaMask!', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const accounts = await window.ethereum.request({method: 'eth_requestAccounts'});
+                
+                if (accounts.length > 0) {
+                    await initializeProvider();
+                    updateConnectionStatus(true);
+                    await refreshWalletInfo();
+                    if (CONTRACT_ADDRESS !== 'YOUR_CONTRACT_ADDRESS_HERE') {
+                        await loadContract();
+                        showResult('contractStatus', '✅ 成功连接到MetaMask并加载合约!', 'success');
+                    } else {
+                        showResult('connectionStatus', '✅ 成功连接到MetaMask!', 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('连接失败:', error);
+                showResult('connectionStatus', `连接失败: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 初始化provider
+        async function initializeProvider() {
+            provider = new ethers.BrowserProvider(window.ethereum);
+            signer = await provider.getSigner();
+            userAccount = await signer.getAddress();
+            
+            // 监听账户变化
+            window.ethereum.on('accountsChanged', handleAccountsChanged);
+            window.ethereum.on('chainChanged', handleChainChanged);
+        }
+
+        // 处理账户变化
+        async function handleAccountsChanged(accounts) {
+            if (accounts.length === 0) {
+                updateConnectionStatus(false);
+                contract = null;
+            } else {
+                await initializeProvider();
+                await refreshWalletInfo();
+                if (CONTRACT_ADDRESS !== 'YOUR_CONTRACT_ADDRESS_HERE') {
+                    await loadContract();
+                }
+            }
+        }
+
+        // 处理网络变化
+        function handleChainChanged(chainId) {
+            window.location.reload();
+        }
+
+        // 更新连接状态UI
+        function updateConnectionStatus(connected) {
+            const status = $('#connectionStatus');
+            const accountInfo = $('#accountInfo');
+            const connectBtn = $('#connectWallet');
+            const refreshBtn = $('#refreshInfo');
+
+            if (connected) {
+                status.removeClass('disconnected').addClass('connected').text('✅ 已连接到MetaMask');
+                accountInfo.show();
+                connectBtn.hide();
+                refreshBtn.show();
+                $('#manualLoadContract').show();
+            } else {
+                status.removeClass('connected').addClass('disconnected').text('❌ 未连接到MetaMask');
+                accountInfo.hide();
+                connectBtn.show();
+                refreshBtn.hide();
+                $('#manualLoadContract').hide();
+            }
+        }
+
+        // 刷新钱包信息
+        async function refreshWalletInfo() {
+            if (!signer) return;
+
+            try {
+                const balance = await provider.getBalance(userAccount);
+                const network = await provider.getNetwork();
+
+                $('#currentAccount').text(userAccount);
+                $('#networkInfo').text(`${network.name} (Chain ID: ${network.chainId})`);
+                $('#ethBalance').text(`${ethers.formatEther(balance)} ETH`);
+                
+                // 自动填充查询余额的地址
+                if (!$('#balanceAddress').val()) {
+                    $('#balanceAddress').val(userAccount);
+                }
+            } catch (error) {
+                console.error('刷新钱包信息失败:', error);
+            }
+        }
+
+        // 加载合约
+        async function loadContract() {
+            if (CONTRACT_ADDRESS === 'YOUR_CONTRACT_ADDRESS_HERE') {
+                showResult('contractStatus', '⚠️ 请先设置合约地址', 'error');
+                return false;
+            }
+
+            if (!signer) {
+                showResult('contractStatus', '请先连接MetaMask', 'error');
+                return false;
+            }
+
+            try {
+                showLoading(true);
+                contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+                
+                // 测试合约是否有效
+                await contract.sayHello();
+                
+                showResult('contractStatus', `✅ 合约加载成功!`, 'success');
+                return true;
+            } catch (error) {
+                console.error('加载合约失败:', error);
+                showResult('contractStatus', `❌ 加载合约失败: ${error.message}`, 'error');
+                contract = null;
+                return false;
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 手动加载合约
+        async function manualLoadContract() {
+            await loadContract();
+        }
+
+        // 调用sayHello
+        async function callSayHello() {
+            if (!contract) {
+                showResult('sayHelloResult', '请先加载合约', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const result = await contract.sayHello();
+                showResult('sayHelloResult', `📢 ${result}`, 'success');
+            } catch (error) {
+                console.error('调用sayHello失败:', error);
+                showResult('sayHelloResult', `❌ 调用失败: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 查询余额
+        async function getBalance() {
+            if (!contract) {
+                showResult('balanceResult', '请先加载合约', 'error');
+                return;
+            }
+
+            const address = $('#balanceAddress').val().trim() || userAccount;
+            
+            if (!ethers.isAddress(address)) {
+                showResult('balanceResult', '请输入有效的地址', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const balance = await contract.balances(address);
+                const balanceEth = ethers.formatEther(balance);
+                showResult('balanceResult', `💰 地址 ${address.substring(0,6)}...${address.substring(38)} 的余额: ${balanceEth} ETH`, 'success');
+            } catch (error) {
+                console.error('查询余额失败:', error);
+                showResult('balanceResult', `❌ 查询失败: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 获取合约总余额
+        async function getContractBalance() {
+            if (!contract) {
+                showResult('contractBalanceResult', '请先加载合约', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const balance = await contract.getContractBalance();
+                const balanceEth = ethers.formatEther(balance);
+                showResult('contractBalanceResult', `🏦 合约总余额: ${balanceEth} ETH`, 'success');
+            } catch (error) {
+                console.error('获取合约余额失败:', error);
+                showResult('contractBalanceResult', `❌ 获取失败: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 存款
+        async function deposit() {
+            if (!contract) {
+                showResult('depositResult', '请先加载合约', 'error');
+                return;
+            }
+
+            const amount = $('#depositAmount').val();
+            if (!amount || parseFloat(amount) <= 0) {
+                showResult('depositResult', '请输入有效的存款金额', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const amountWei = ethers.parseEther(amount.toString());
+                const tx = await contract.deposit({value: amountWei});
+                
+                showResult('depositResult', `📤 交易已发送，等待确认... Hash: ${tx.hash}`, 'info');
+                
+                const receipt = await tx.wait();
+                showResult('depositResult', `✅ 存款成功! 金额: ${amount} ETH, Gas使用: ${receipt.gasUsed.toString()}`, 'success');
+                
+                // 刷新余额
+                await refreshWalletInfo();
+                if ($('#balanceAddress').val() === userAccount) {
+                    await getBalance();
+                }
+                await getContractBalance();
+                
+            } catch (error) {
+                console.error('存款失败:', error);
+                showResult('depositResult', `❌ 存款失败: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 取款
+        async function withdraw() {
+            if (!contract) {
+                showResult('withdrawResult', '请先加载合约', 'error');
+                return;
+            }
+
+            const amount = $('#withdrawAmount').val();
+            if (!amount || parseFloat(amount) <= 0) {
+                showResult('withdrawResult', '请输入有效的取款金额', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const amountWei = ethers.parseEther(amount.toString());
+                const tx = await contract.Withdraw(amountWei);
+                
+                showResult('withdrawResult', `📤 交易已发送，等待确认... Hash: ${tx.hash}`, 'info');
+                
+                const receipt = await tx.wait();
+                showResult('withdrawResult', `✅ 取款成功! 金额: ${amount} ETH, Gas使用: ${receipt.gasUsed.toString()}`, 'success');
+                
+                // 刷新余额
+                await refreshWalletInfo();
+                if ($('#balanceAddress').val() === userAccount) {
+                    await getBalance();
+                }
+                await getContractBalance();
+                
+            } catch (error) {
+                console.error('取款失败:', error);
+                showResult('withdrawResult', `❌ 取款失败: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 开始监听事件
+        async function startEventListening() {
+            if (!contract) {
+                showResult('eventsResult', '请先加载合约', 'error');
+                return;
+            }
+
+            try {
+                // 清除之前的监听器
+                stopEventListening();
+                
+                // 监听Deposited事件
+                const depositedListener = contract.on('Deposited', (account, amount, event) => {
+                    const amountEth = ethers.formatEther(amount);
+                    const message = `💰 存款事件: ${account.substring(0,6)}...${account.substring(38)} 存入 ${amountEth} ETH`;
+                    appendEventMessage(message);
+                });
+
+                // 监听Withdrawn事件
+                const withdrawnListener = contract.on('Withdrawn', (account, amount, event) => {
+                    const amountEth = ethers.formatEther(amount);
+                    const message = `💸 取款事件: ${account.substring(0,6)}...${account.substring(38)} 取出 ${amountEth} ETH`;
+                    appendEventMessage(message);
+                });
+
+                eventListeners.push(depositedListener, withdrawnListener);
+                
+                $('#listenEventsBtn').hide();
+                $('#stopEventsBtn').show();
+                
+                showResult('eventsResult', '📡 开始监听合约事件...', 'info');
+                
+            } catch (error) {
+                console.error('监听事件失败:', error);
+                showResult('eventsResult', `❌ 监听失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 停止监听事件
+        function stopEventListening() {
+            if (contract) {
+                contract.removeAllListeners();
+            }
+            eventListeners = [];
+            
+            $('#listenEventsBtn').show();
+            $('#stopEventsBtn').hide();
+            
+            showResult('eventsResult', '⏹️ 已停止监听事件', 'info');
+        }
+
+        // 添加事件消息
+        function appendEventMessage(message) {
+            const eventsResult = $('#eventsResult');
+            const timestamp = new Date().toLocaleTimeString();
+            const newMessage = `[${timestamp}] ${message}<br>`;
+            
+            if (eventsResult.html().includes('开始监听') || eventsResult.html().includes('已停止监听')) {
+                eventsResult.html(newMessage);
+            } else {
+                eventsResult.append(newMessage);
+            }
+            eventsResult.show();
+        }
+
+        // 显示结果
+        function showResult(elementId, message, type = 'info') {
+            const element = $(`#${elementId}`);
+            element.removeClass('error success info').addClass(type);
+            element.html(message).show();
+        }
+
+        // 显示/隐藏加载状态
+        function showLoading(show) {
+            if (show) {
+                $('#loadingIndicator').show();
+            } else {
+                $('#loadingIndicator').hide();
+            }
+        }
+
+        // 页面卸载时清理事件监听器
+        $(window).on('beforeunload', function() {
+            stopEventListening();
+        });
+    </script>
+</body>
+</html>
